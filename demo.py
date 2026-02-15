@@ -101,13 +101,13 @@ class Player(pygame.sprite.Sprite):
         # print(self.y_velocity)
         # print(self.rect.y)
         # print("dt",dt)
-        self.rect.x += self.x_velocity * dt
+        self.rect.x += self.x_velocity * dt #+ scroll[0]
 
         detect_x_collision(self)
 
         # responsible for simulating the character free-falling because of gravity
         self.y_velocity += GRAVITY * dt * .5
-        self.rect.y += self.y_velocity * dt * .5
+        self.rect.y += self.y_velocity * dt * .5 #+ scroll[1]
         self.y_velocity += GRAVITY * dt * .5
         # print(self.y_velocity)
         # print(self.rect.y)
@@ -492,31 +492,31 @@ def detect_explosion(explosions: pygame.sprite.Group, bullets: list[Bullet], til
         for tile in tiles:
             if bullet.rect.colliderect(tile.image_rect):
                 # pygame.draw.circle(surface, (255, 0, 0, 128), (bullet.rect.centerx, bullet.rect.centery), RADIUS)
-                explosion = Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS)
+                explosion = Explosion(bullet.rect.centerx-scroll[0], bullet.rect.centery-scroll[1], RADIUS)
                 explosions.add(explosion)
 
                 create_particles(bullet.rect.center)
                 for _ in range(6):
-                    sparks.append(Spark([bullet.rect.centerx, bullet.rect.centery], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
+                    sparks.append(Spark([bullet.rect.centerx-scroll[0], bullet.rect.centery-scroll[1]], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
 
 
 def create_particles(pos: tuple):
     # add particles on a list then on main loop draw it
     # still call draw even when it is empty
     for _ in range(7): # loc, radius
-        particles.append([[random.randrange(pos[0]-50, pos[0]+50),
-                            random.randrange(pos[1]-40, pos[1])],
+        particles.append([[random.randrange(pos[0]-50, pos[0]+50)-scroll[0],
+                            random.randrange(pos[1]-40, pos[1])-scroll[1]],
                             random.randrange(10, 30)])
 
 def create_radiation(pos: tuple):
     for _ in range(1): # loc, radius, width
-        radiations.append([[pos[0], pos[1]],
+        radiations.append([[pos[0]-scroll[0], pos[1]-scroll[1]],
                             15,
                               5])
 
 def create_background_particles():
     if len(background_particles) < 7: # loc, radius, direction
-        background_particles.append([[random.randrange(GAME_WIDTH), random.randrange(GAME_HEIGHT)],
+        background_particles.append([[random.randrange(GAME_WIDTH)-scroll[0], random.randrange(GAME_HEIGHT)-scroll[1]],
                                      random.randrange(2, 4),
                                      [random.choice([.5, -.5]), random.choice([.5, -.5])]])
 
@@ -525,7 +525,7 @@ def create_dust():
     if pl.x_velocity != 0:
         if pl.rect.y == 312 or not pl.jumping:
             if len(dusts) < 30:# loc, radius, velocity
-                dusts.append([list(pl.rect.midbottom),
+                dusts.append([[pl.rect.midbottom[0]-scroll[0], pl.rect.midbottom[1]-scroll[1]],
                             5,
                             [random.randint(-2, 2), random.randint(-15, 0)*.1]])
 
@@ -586,7 +586,7 @@ def draw_particles(particles):
 
             for particle in particles:
                 particle[1] -= 1
-                pygame.draw.circle(surface, (255, random.randrange(255), 0), particle[0], int(particle[1]))
+                pygame.draw.circle(surface, (255, random.randrange(255), 0), (particle[0][0], particle[0][1]), int(particle[1]))
 
 def draw_radiation(radiations):
     if radiations:
@@ -595,7 +595,7 @@ def draw_radiation(radiations):
         for radiation in radiations:
             radiation[1] += 5 # radius
             radiation[2] -= .1 # width
-            pygame.draw.circle(surface, (255, 126, 0), radiation[0], int(radiation[1]), int(radiation[2]))
+            pygame.draw.circle(surface, (255, 126, 0), (radiation[0][0], radiation[0][1]), int(radiation[1]), int(radiation[2]))
 
 def draw_background_particles():
     global background_particles
@@ -639,7 +639,7 @@ def draw_dust():
             dust[1] -= .2
             pygame.draw.circle(surface,
                             (random.randrange(100, 200), random.randint(50, 120), random.randint(0, 80)),
-                            dust[0],
+                            (dust[0][0], dust[0][1]),
                             int(dust[1]))
         
 
@@ -714,7 +714,6 @@ def apply_knockback_flying_enemy(bullet_speed, enemy:FlyingEnemy):
 
 
 class Tile:
-
     def __init__(self, image, x, y):
         self.image_surface = pygame.transform.scale(pygame.image.load(image).convert_alpha(), (TILE_SIZE, TILE_SIZE))
         self.image_rect = self.image_surface.get_rect()
@@ -734,6 +733,7 @@ def create_tilemap():
 def draw_tiles():
     for tile in tiles:
         surface.blit(tile.image_surface, (tile.image_rect.x-scroll[0], tile.image_rect.y-scroll[1]))
+        # surface.blit(tile.image_surface, (tile.image_rect.x, tile.image_rect.y))
 
 def get_tile_collided(player: Player):
     for tile in tiles:
@@ -817,7 +817,7 @@ while running:
     if mouse_hold[0]:
         current_time = pygame.time.get_ticks()
         if current_time - previous_time > 300:
-            bullet = Bullet("bullet.png", pl.rect.centerx, pl.rect.centery, dt, pl.x_direction, mouse_pos[0], mouse_pos[1])
+            bullet = Bullet("bullet.png", pl.rect.centerx-scroll[0], pl.rect.centery-scroll[1], dt, pl.x_direction, mouse_pos[0], mouse_pos[1])
             bullet_group.add(bullet)
             previous_time = current_time
 
@@ -858,8 +858,8 @@ while running:
     # own_enemy_group.draw(surface)
     # own_enemy_group.update(pl, dt)
 
-    flying_enemy_group.draw(surface)
-    flying_enemy_group.update(pl, dt)
+    # flying_enemy_group.draw(surface)
+    # flying_enemy_group.update(pl, dt)
 
     explosions.update()
     explosions.draw(surface)
