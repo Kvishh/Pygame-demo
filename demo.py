@@ -123,7 +123,6 @@ class Player(pygame.sprite.Sprite):
         if self.rect.y < 0:
             self.rect.y = 0
     
-
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
@@ -138,11 +137,10 @@ class Enemy(pygame.sprite.Sprite):
         self.stuck_center_posx = 0
     
     def update(self, pl: Player, dt):
-        print(self.rect.x)
         # pygame.draw.rect(surface, (255, 255, 255), self.rect, 1)
         
         self.sensor.center = self.rect.midtop
-        pygame.draw.rect(surface, (255, 255, 255), self.sensor, 1)
+        pygame.draw.rect(surface, (255, 255, 255), ((self.sensor.x-scroll[0], self.sensor.y-scroll[1]), (self.sensor.w, self.sensor.h)), 1)
 
         for tile in tiles:
             collided_tile = tile.image_rect.colliderect(self.sensor)
@@ -306,15 +304,15 @@ class Bullet(pygame.sprite.Sprite):
         self.direction = direction
         self._x = x
         self._y = y
-        self._mouse_target_x = mouse_target_x
-        self._mouse_target_y = mouse_target_y
-        self._angle = math.atan2(self._mouse_target_y-self.rect.y, self._mouse_target_x-self.rect.x)
-        self._x_vel = math.cos(self._angle)*self.speed*dt
-        self._y_vel = math.sin(self._angle)*self.speed*dt
+        self._mouse_target_x = mouse_target_x + scroll[0]
+        self._mouse_target_y = mouse_target_y + scroll[1]
+        self._angle = math.atan2(self._mouse_target_y - self._y, self._mouse_target_x - self._x) # ORIGNIAL!!!
+        self._x_vel = math.cos(self._angle)*self.speed
+        self._y_vel = math.sin(self._angle)*self.speed
 
         self.particles = []
     
-    def update(self, tiles: list[Tile]):
+    def update(self, tiles: list[Tile], dt):
         ########## TRAIL PARTICLE ##########
         for particle in self.particles:
             particle[0][0] -= 1
@@ -341,22 +339,24 @@ class Bullet(pygame.sprite.Sprite):
         for tile in tiles:
             if self.rect.colliderect(tile.image_rect):
                 self.kill()
-        self._check_collision_against_own_enemy()
-        self._check_collision_against_flying_enemy()
+        # self._check_collision_against_own_enemy() # LINE 672 - 693 functions bullet_hit_own_enemy and bullet_hit_flying_enemy
+        # self._check_collision_against_flying_enemy()
         
-        self._x += self._x_vel
-        self._y += self._y_vel
+        # Responsible for bullet movement, you could remove everything above
+        # these and the bullet will still travel
+        self._x += self._x_vel * dt
+        self._y += self._y_vel * dt
         self.rect.x = int(self._x)
         self.rect.y = int(self._y)
     
     def _draw_particles(self):
         for i, particle in enumerate(self.particles):
-            pygame.draw.circle(surface, particle[2], particle[0], (i//3+2))
+            pygame.draw.circle(surface, particle[2], (particle[0][0]-scroll[0], particle[0][1]-scroll[1]), (i//3+2))
     
     def _check_collision_against_own_enemy(self):
         for own_enemy in own_enemy_group.sprites():
             if self.rect.colliderect(own_enemy.rect):
-                explosion = Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS)
+                explosion = Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS) # ORIGINAL!!
                 explosions.add(explosion)
                 self.kill()
     
@@ -405,15 +405,18 @@ class Wand(pygame.sprite.Sprite):
     
     def update(self, player, x, y):
         pos_mouse = pygame.mouse.get_pos()
-        mouse_pos_x = pos_mouse[0]
-        mouse_pos_y = pos_mouse[1]
+        # mouse_pos_x = pos_mouse[0] #ORIGNAL!!!
+        # mouse_pos_y = pos_mouse[1] #ORIGNAL!!!
+        mouse_pos_x = pos_mouse[0] + scroll[0]
+        mouse_pos_y = pos_mouse[1] + scroll[1]
         pl_x = x
         pl_y = y
+        # print("Player center pos:",player.rect.center)
 
         # offset_mouse = pos_mouse - self.pivot_point
         # angle_mouse = math.atan2(self._mouse_target_y-self.rect.y, self._mouse_target_x-self.rect.x)
+
         angle_mouse = math.degrees(math.atan2(mouse_pos_y - pl_y, mouse_pos_x - pl_x))
-        # print(angle_mouse)
         self.switch_player_orientation(player, angle_mouse)
         self.rotate_around_pivot(angle_mouse, x, y)
 
@@ -427,9 +430,6 @@ class Wand(pygame.sprite.Sprite):
 
     def switch_player_orientation(self, pl: Player, angle):
         pl.x_direction = -1 if angle > 90 or angle < -90 else 1
-        # if angle > 90 or angle < -90:
-        #     pl.x_direction = -1
-        # else: pl.x_direction = 1
 
 class Spark():
     def __init__(self, loc, angle, speed, color, scale=1):
@@ -480,43 +480,48 @@ class Spark():
     def draw(self, surf, offset=[0, 0]):
         if self.alive:
             points = [
-                [self.loc[0] + math.cos(self.angle) * self.speed * self.scale, self.loc[1] + math.sin(self.angle) * self.speed * self.scale],
-                [self.loc[0] + math.cos(self.angle + math.pi / 2) * self.speed * self.scale * 0.3, self.loc[1] + math.sin(self.angle + math.pi / 2) * self.speed * self.scale * 0.3],
-                [self.loc[0] - math.cos(self.angle) * self.speed * self.scale * 3.5, self.loc[1] - math.sin(self.angle) * self.speed * self.scale * 3.5],
-                [self.loc[0] + math.cos(self.angle - math.pi / 2) * self.speed * self.scale * 0.3, self.loc[1] - math.sin(self.angle + math.pi / 2) * self.speed * self.scale * 0.3],
+                [(self.loc[0] - scroll[0]) + math.cos(self.angle) * self.speed * self.scale, (self.loc[1] - scroll[1]) + math.sin(self.angle) * self.speed * self.scale],
+                [(self.loc[0] - scroll[0]) + math.cos(self.angle + math.pi / 2) * self.speed * self.scale * 0.3, (self.loc[1] - scroll[1]) + math.sin(self.angle + math.pi / 2) * self.speed * self.scale * 0.3],
+                [(self.loc[0] - scroll[0]) - math.cos(self.angle) * self.speed * self.scale * 3.5, (self.loc[1] - scroll[1]) - math.sin(self.angle) * self.speed * self.scale * 3.5],
+                [(self.loc[0] - scroll[0]) + math.cos(self.angle - math.pi / 2) * self.speed * self.scale * 0.3, (self.loc[1] - scroll[1]) - math.sin(self.angle + math.pi / 2) * self.speed * self.scale * 0.3],
                 ]
             pygame.draw.polygon(surf, self.color, points)
 
-def detect_explosion(explosions: pygame.sprite.Group, bullets: list[Bullet], tiles: list[Tile]):
+def detect_explosion(explosions: CustomGroup, bullets: list[Bullet], tiles: list[Tile]):
     for bullet in bullets:
         for tile in tiles:
             if bullet.rect.colliderect(tile.image_rect):
                 # pygame.draw.circle(surface, (255, 0, 0, 128), (bullet.rect.centerx, bullet.rect.centery), RADIUS)
-                explosion = Explosion(bullet.rect.centerx-scroll[0], bullet.rect.centery-scroll[1], RADIUS)
+                explosion = Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS)
                 explosions.add(explosion)
 
                 create_particles(bullet.rect.center)
                 for _ in range(6):
-                    sparks.append(Spark([bullet.rect.centerx-scroll[0], bullet.rect.centery-scroll[1]], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
+                    sparks.append(Spark([bullet.rect.centerx, bullet.rect.centery], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
 
 
 def create_particles(pos: tuple):
     # add particles on a list then on main loop draw it
     # still call draw even when it is empty
-    for _ in range(7): # loc, radius
-        particles.append([[random.randrange(pos[0]-50, pos[0]+50)-scroll[0],
-                            random.randrange(pos[1]-40, pos[1])-scroll[1]],
+    for _ in range(2):
+        particles.append([[random.randrange(pos[0]-30, pos[0]+30),
+                          random.randrange(pos[1]-40, pos[1])],
+                          random.randrange(40, 50)])
+    
+    for _ in range(5): # loc, radius
+        particles.append([[random.randrange(pos[0]-50, pos[0]+50),
+                            random.randrange(pos[1]-70, pos[1])],
                             random.randrange(10, 30)])
 
 def create_radiation(pos: tuple):
     for _ in range(1): # loc, radius, width
-        radiations.append([[pos[0]-scroll[0], pos[1]-scroll[1]],
+        radiations.append([[pos[0], pos[1]],
                             15,
                               5])
 
 def create_background_particles():
     if len(background_particles) < 7: # loc, radius, direction
-        background_particles.append([[random.randrange(GAME_WIDTH)-scroll[0], random.randrange(GAME_HEIGHT)-scroll[1]],
+        background_particles.append([[random.randrange(GAME_WIDTH), random.randrange(GAME_HEIGHT)],
                                      random.randrange(2, 4),
                                      [random.choice([.5, -.5]), random.choice([.5, -.5])]])
 
@@ -525,7 +530,7 @@ def create_dust():
     if pl.x_velocity != 0:
         if pl.rect.y == 312 or not pl.jumping:
             if len(dusts) < 30:# loc, radius, velocity
-                dusts.append([[pl.rect.midbottom[0]-scroll[0], pl.rect.midbottom[1]-scroll[1]],
+                dusts.append([[pl.rect.midbottom[0], pl.rect.midbottom[1]],
                             5,
                             [random.randint(-2, 2), random.randint(-15, 0)*.1]])
 
@@ -586,7 +591,7 @@ def draw_particles(particles):
 
             for particle in particles:
                 particle[1] -= 1
-                pygame.draw.circle(surface, (255, random.randrange(255), 0), (particle[0][0], particle[0][1]), int(particle[1]))
+                pygame.draw.circle(surface, (255, random.randrange(255), 0), (particle[0][0]-scroll[0], particle[0][1]-scroll[1]), int(particle[1]))
 
 def draw_radiation(radiations):
     if radiations:
@@ -595,7 +600,7 @@ def draw_radiation(radiations):
         for radiation in radiations:
             radiation[1] += 5 # radius
             radiation[2] -= .1 # width
-            pygame.draw.circle(surface, (255, 126, 0), (radiation[0][0], radiation[0][1]), int(radiation[1]), int(radiation[2]))
+            pygame.draw.circle(surface, (255, 126, 0), (radiation[0][0]-scroll[0], radiation[0][1]-scroll[1]), int(radiation[1]), int(radiation[2]))
 
 def draw_background_particles():
     global background_particles
@@ -609,16 +614,17 @@ def draw_background_particles():
             # bg_particle[0][1] += -.5
             bg_particle[0][0] += bg_particle[2][0]
             bg_particle[0][1] += bg_particle[2][1]
-            pygame.draw.circle(surface, (255, 255, 255), [int(bg_particle[0][0]), int(bg_particle[0][1])], bg_particle[1])
+            pygame.draw.circle(surface, (255, 255, 255), [int(bg_particle[0][0])-scroll[0], int(bg_particle[0][1])-scroll[1]], bg_particle[1])
 
             # change the multiplier if you want to make the glow particle (circle) to be bigger
             bg_particle_radius = bg_particle[1]*3
 
             particle_surface = pygame.Surface((bg_particle_radius * 2, bg_particle_radius * 2))
             pygame.draw.circle(particle_surface, (20, 20, 20), (bg_particle_radius, bg_particle_radius), bg_particle_radius)
+            # pygame.draw.circle(particle_surface, (20, 20, 20), (bg_particle_radius-scroll[0], bg_particle_radius-scroll[1]), bg_particle_radius) # ORIGINAL!!
             particle_surface.set_colorkey((0,0,0))
 
-            surface.blit(particle_surface, [int(bg_particle[0][0] - bg_particle_radius), int(bg_particle[0][1] - bg_particle_radius)], special_flags=pygame.BLEND_RGB_ADD)
+            surface.blit(particle_surface, [int(bg_particle[0][0] - bg_particle_radius)-scroll[0], int(bg_particle[0][1] - bg_particle_radius)-scroll[1]], special_flags=pygame.BLEND_RGB_ADD)
 
 def draw_sparks():
     for i, spark in sorted(enumerate(sparks), reverse=True):
@@ -639,7 +645,7 @@ def draw_dust():
             dust[1] -= .2
             pygame.draw.circle(surface,
                             (random.randrange(100, 200), random.randint(50, 120), random.randint(0, 80)),
-                            (dust[0][0], dust[0][1]),
+                            (dust[0][0]-scroll[0], dust[0][1]-scroll[1]),
                             int(dust[1]))
         
 
@@ -674,6 +680,7 @@ def bullet_hit_own_enemy():
 
         for own_enemy in own_enemies:
             apply_knockback(bullet.speed, own_enemy)
+            explosions.add(Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS))
 
         for _ in range(6):
             sparks.append(Spark([bullet.rect.centerx, bullet.rect.centery], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
@@ -695,9 +702,10 @@ def bullet_hit_flying_enemy():
 
         for flying_enemy in flying_enemies:
             apply_knockback_flying_enemy(bullet.speed, flying_enemy)
+            explosions.add(Explosion(bullet.rect.centerx, bullet.rect.centery, RADIUS))
 
         for _ in range(6):
-            sparks.append(Spark([bullet.rect.centerx, bullet.rect.centery], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))    
+            sparks.append(Spark([bullet.rect.centerx, bullet.rect.centery], math.radians(random.randint(0, 360)), random.randint(3, 6), (255, 255, 255), 2))
 
 # negative if bullet going left and pos if going right
 def apply_knockback(bullet_speed, enemy):
@@ -719,7 +727,6 @@ class Tile:
         self.image_rect = self.image_surface.get_rect()
         self.image_rect.topleft = (x, y)
 
-scroll = [0, 0]
 
 tiles: list[Tile] = []
 
@@ -727,7 +734,7 @@ def create_tilemap():
     for i, row in enumerate(tilemap):
         for j, column in enumerate(row):
             if column == 1:
-                tile = Tile("rock-tile1.png", j*TILE_SIZE, i*TILE_SIZE)
+                tile = Tile("rock-tile1.png", (j*TILE_SIZE), (i*TILE_SIZE))
                 tiles.append(tile)
 
 def draw_tiles():
@@ -758,17 +765,28 @@ def detect_x_collision(player: Player):
     elif player.x_velocity < 0 and collided_tile is not None:
         player.rect.x = collided_tile.image_rect.right
 
+class CustomGroup(pygame.sprite.Group):
+    def draw(self, surface):
+        sprites = self.sprites()
+        surface_blit = surface.blit
+        for spr in sprites:
+            self.spritedict[spr] = surface_blit(spr.image, (spr.rect.x-scroll[0], spr.rect.y-scroll[1])) ### !!!!!
+
+            # taken from scroll_demo.py. Not really needed here
+            # pygame.draw.rect(surface, (255, 0, 0), ((spr.rect.x-scroll[0], spr.rect.y-scroll[1]), (spr.rect.w, spr.rect.h)), width=2) ### !!!!!
+        self.lostsprites = []
+
 # x = 500 - 42
 x = 0
 y = 0
 pl = Player(x, y)
 wand = Wand(pl.rect.centerx, pl.rect.centery)
 
-all_enemy_group = pygame.sprite.Group()
+all_enemy_group = CustomGroup()
 
 # ENEMY CLASS
-own_enemy_group = pygame.sprite.Group()
-flying_enemy_group = pygame.sprite.Group()
+own_enemy_group = CustomGroup()
+flying_enemy_group = CustomGroup()
 # ENEMY CLASS
 
 for _ in range(1):
@@ -782,12 +800,12 @@ for _ in range(1):
     flying_enemy_group.add(flying_enemy)
     all_enemy_group.add(enemy)
 
-bullet_group = pygame.sprite.Group()
-player_group = pygame.sprite.Group(pl)
+bullet_group = CustomGroup()
+player_group = CustomGroup(pl)
 
-explosions = pygame.sprite.Group()
+explosions = CustomGroup()
 
-wands = pygame.sprite.Group(wand)
+wands = CustomGroup(wand)
 
 background_particles = []
 particles = []
@@ -795,18 +813,31 @@ radiations = []
 sparks: list[Spark] = []
 dusts = []
 
+true_scroll = [0, 0]
+scroll = [0, 0]
+
 create_tilemap()
 previous_time = pygame.time.get_ticks()
 running = True
 while running:
-    scroll[0] += pl.rect.x-scroll[0]-(250-HERO_WIDTH//2)
-    scroll[1] += pl.rect.y-scroll[1]-(200-HERO_HEIGHT//2)
+    true_scroll[0] += (pl.rect.x-scroll[0]-(GAME_WIDTH//2 - HERO_WIDTH//2)) / 20 # the higher the slower the camera will move
+    true_scroll[1] += (pl.rect.y-scroll[1]-(GAME_HEIGHT//2 - HERO_HEIGHT//2)) / 20
+
+    scroll = true_scroll.copy()
+    scroll[0] = int(true_scroll[0])
+    scroll[1] = int(true_scroll[1])
+
 
     create_background_particles()
 
     dt = clock.tick(FPS) / 1000
     pygame.display.flip()
     surface.fill((56, 56, 56))
+
+    pygame.draw.rect(surface, (0, 80, 0), ((-GAME_WIDTH-scroll[0]*.5, 300-scroll[1]*.5), (GAME_WIDTH*5, 400))) # add before fill or display flip | no idea
+
+    pygame.draw.rect(surface, (0, 255, 0), ((300-scroll[0]*.5, 250-scroll[1]*.5), (120, 360))) # add before fill or display flip | no idea
+    pygame.draw.rect(surface, (0, 120, 160), ((150-scroll[0]*.5, 170-scroll[1]*.5), (120, 360))) # add before fill or display flip | no idea
     
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -817,11 +848,11 @@ while running:
     if mouse_hold[0]:
         current_time = pygame.time.get_ticks()
         if current_time - previous_time > 300:
-            bullet = Bullet("bullet.png", pl.rect.centerx-scroll[0], pl.rect.centery-scroll[1], dt, pl.x_direction, mouse_pos[0], mouse_pos[1])
+            bullet = Bullet("bullet.png", pl.rect.centerx, pl.rect.centery, dt, pl.x_direction, mouse_pos[0], mouse_pos[1]) #ORIGINAL!!!
             bullet_group.add(bullet)
             previous_time = current_time
 
-    bullet_group.update(tiles)
+    bullet_group.update(tiles, dt)
     bullet_group.draw(surface)
     detect_explosion(explosions, bullet_group.sprites(), tiles)
 
@@ -855,27 +886,28 @@ while running:
     draw_radiation(radiations)
     draw_background_particles()
 
-    # own_enemy_group.draw(surface)
-    # own_enemy_group.update(pl, dt)
+    own_enemy_group.draw(surface)
+    own_enemy_group.update(pl, dt)
 
-    # flying_enemy_group.draw(surface)
-    # flying_enemy_group.update(pl, dt)
+    flying_enemy_group.draw(surface)
+    flying_enemy_group.update(pl, dt)
 
     explosions.update()
     explosions.draw(surface)
 
-    wand.update(pl, pl.rect.centerx, pl.rect.centery)
-    surface.blit(wand.image, (wand.rect.x-scroll[0], wand.rect.y-scroll[1]))
-    # wands.draw(surface)
-    # wands.update(pl, pl.rect.centerx, pl.rect.centery)
+    # wand.update(pl, pl.rect.centerx, pl.rect.centery)
+    # surface.blit(wand.image, (wand.rect.x-scroll[0], wand.rect.y-scroll[1]))
+    wands.draw(surface)
+    wands.update(pl, pl.rect.centerx, pl.rect.centery)
 
-    pl.update(dt)
-    surface.blit(pl.image, (pl.rect.x-scroll[0], pl.rect.y-scroll[1]))
-    # player_group.draw(surface)
-    # player_group.update(dt)
+    # pl.update(dt)
+    # surface.blit(pl.image, (pl.rect.x-scroll[0], pl.rect.y-scroll[1]))
+    player_group.draw(surface)
+    player_group.update(dt)
     # print(pl.y_velocity)
 
     draw_sparks()
 
     create_dust()
     draw_dust()
+
